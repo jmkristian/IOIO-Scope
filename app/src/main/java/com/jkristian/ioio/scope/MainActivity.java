@@ -4,7 +4,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.drawable.BitmapDrawable;
 import android.os.Bundle;
@@ -13,11 +12,10 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.ImageView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.ColorInt;
-import androidx.annotation.ColorLong;
-import androidx.annotation.ColorRes;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.content.ContextCompat;
@@ -48,6 +46,7 @@ public class MainActivity extends AppCompatActivity {
     private IOIOAndroidApplicationHelper ioio;
     private Handler toUiThread;
     private Timer background;
+    private TextView connectionStatus;
     private List<ImageView> charts = new ArrayList<>();
     private List<SampleSet> samples = new ArrayList<>();
 
@@ -73,6 +72,7 @@ public class MainActivity extends AppCompatActivity {
                         .setAction("Action", null).show();
             }
         });
+        connectionStatus = findViewById(R.id.connectionStatus);
         charts.add((ImageView) findViewById(R.id.chart1));
         charts.add((ImageView) findViewById(R.id.chart2));
         samples.add(new SampleSet());
@@ -142,12 +142,12 @@ public class MainActivity extends AppCompatActivity {
         private DigitalOutput statusLED;
 
         public void incompatible() {
-            showVersions(ioio_, "IOIO firmware is incompatible");
+            showStatus("IOIO firmware is incompatible", ioio_);
         }
 
         @Override
         protected void setup() throws ConnectionLostException {
-            showVersions(ioio_, "IOIO connected");
+            showStatus("connected", ioio_);
             statusLED = ioio_.openDigitalOutput(0, true);
             startDaemon(new WatchDigitalInput(
                     1, ioio_.openDigitalInput(1, DigitalInput.Spec.Mode.PULL_UP),
@@ -166,23 +166,34 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void disconnected() {
+            showStatus("disconnected", null);
             try {
-                statusLED.write(false);
+                if (statusLED != null) {
+                    statusLED.write(false);
+                }
             } catch (ConnectionLostException ignored) {
             }
         }
 
-        private void showVersions(IOIO ioio, String title) {
-            toast(String.format("%s\n" +
-                            "IOIOLib: %s\n" +
-                            "Application firmware: %s\n" +
-                            "Bootloader firmware: %s\n" +
-                            "Hardware: %s",
-                    title,
-                    ioio.getImplVersion(IOIO.VersionType.IOIOLIB_VER),
-                    ioio.getImplVersion(IOIO.VersionType.APP_FIRMWARE_VER),
-                    ioio.getImplVersion(IOIO.VersionType.BOOTLOADER_VER),
-                    ioio.getImplVersion(IOIO.VersionType.HARDWARE_VER)));
+        private void showStatus(String title, IOIO ioio) {
+            final StringBuilder status = new StringBuilder(title);
+            if (ioio != null) {
+                status.append(String.format(
+                        "\nIOIOLib: %s" +
+                                "\nApplication firmware: %s" +
+                                "\nBootloader firmware: %s" +
+                                "\nHardware: %s",
+                        ioio.getImplVersion(IOIO.VersionType.IOIOLIB_VER),
+                        ioio.getImplVersion(IOIO.VersionType.APP_FIRMWARE_VER),
+                        ioio.getImplVersion(IOIO.VersionType.BOOTLOADER_VER),
+                        ioio.getImplVersion(IOIO.VersionType.HARDWARE_VER)));
+            }
+            toUiThread.post(new Runnable() {
+                @Override
+                public void run() {
+                    connectionStatus.setText(status.toString());
+                }
+            });
         }
     }
 

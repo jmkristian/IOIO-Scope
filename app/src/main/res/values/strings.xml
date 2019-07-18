@@ -5,4 +5,5 @@
     <string name="description_chart">chart</string>
     <string name="label_input_1">1 digital</string>
     <string name="label_input_46">46 analog</string>
+    <string name="connecting">connecting ...</string>
 </resources>
