@@ -56,10 +56,10 @@ class LineSet {
 
     private void addLineFrom(Collection<Line> lines, Sample start, long endTime) {
         if (start.time <= endTime) {
-            int lastX = Math.max(0, (int) ((start.time - startTime) * SCALE / SEC));
-            int x = Math.min(width - 1, (int) ((endTime - startTime) * SCALE / SEC));
+            int fromX = Math.max(0, (int) ((start.time - startTime) * SCALE / SEC));
+            int toX = Math.min(width - 1, (int) ((endTime - startTime) * SCALE / SEC));
             int y = HALF_STROKE + Math.round((1.0f - start.value) * (height - 1 - HALF_STROKE));
-            lines.add(new Line(lastX, y, x, y));
+            lines.add(new Line(fromX, y, toX, y));
         }
     }
 }
