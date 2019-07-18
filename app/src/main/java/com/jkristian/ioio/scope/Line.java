@@ -15,6 +15,6 @@ class Line {
 
     @Override
     public String toString() {
-        return "Line{" + fromX + "," + fromY + "," + toX + "," + toY + '}';
+        return "Line{" + fromX + "," + fromY + "," + toX + "," + toY + "}";
     }
 }

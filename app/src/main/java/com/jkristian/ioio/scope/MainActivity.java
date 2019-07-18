@@ -26,7 +26,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Deque;
-import java.util.Iterator;
+import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -46,11 +46,9 @@ public class MainActivity extends AppCompatActivity {
 
     private IOIOAndroidApplicationHelper ioio;
     private Handler toUiThread;
-    private ImageView chart1;
-    private ImageView chart2;
     private Timer background;
-    private Deque<Sample> samples1 = new ArrayDeque<>();
-    private Deque<Sample> samples2 = new ArrayDeque<>();
+    private List<ImageView> charts = new ArrayList<>();
+    private List<Deque<Sample>> samples = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -70,12 +68,14 @@ public class MainActivity extends AppCompatActivity {
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
+                Snackbar.make(view, "TBD", Snackbar.LENGTH_LONG)
                         .setAction("Action", null).show();
             }
         });
-        chart1 = findViewById(R.id.chart1);
-        chart2 = findViewById(R.id.chart2);
+        charts.add((ImageView) findViewById(R.id.chart1));
+        charts.add((ImageView) findViewById(R.id.chart2));
+        samples.add(new ArrayDeque<Sample>());
+        samples.add(new ArrayDeque<Sample>());
     }
 
     @Override
@@ -101,8 +101,9 @@ public class MainActivity extends AppCompatActivity {
         ioio.stop();
         super.onStop();
         background.cancel();
-        samples1.clear();
-        samples2.clear();
+        for (Deque<Sample> sample : samples) {
+            sample.clear();
+        }
     }
 
     protected void onNewIntent(Intent intent) {
@@ -147,12 +148,12 @@ public class MainActivity extends AppCompatActivity {
             statusLED = ioio_.openDigitalOutput(0, true);
 
             DigitalInput input1 = ioio_.openDigitalInput(1, DigitalInput.Spec.Mode.PULL_UP);
-            Thread watcher = new Thread(new WatchDigitalInput(1, input1, samples1));
+            Thread watcher = new Thread(new WatchDigitalInput(1, input1, samples.get(0)));
             watcher.setDaemon(true);
             watcher.start();
 
             AnalogInput input46 = ioio_.openAnalogInput(46);
-            watcher = new Thread(new WatchAnalogInput(46, input46, samples2));
+            watcher = new Thread(new WatchAnalogInput(46, input46, samples.get(1)));
             watcher.setDaemon(true);
             watcher.start();
         }
@@ -203,20 +204,15 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void run() {
                     // On the UI thread, look at the views and copy the samples:
-                    final LineSet liner1 = new LineSet(chart1);
-                    final LineSet liner2 = new LineSet(chart2);
-                    final Collection<Sample> s1 = recent(samples1, liner1.startTime);
-                    final Collection<Sample> s2 = recent(samples2, liner2.startTime);
+                    final Collection<LineSet> lineSets = newLineSets();
                     try {
                         background.schedule(new TimerTask() {
                             @Override
                             public void run() {
                                 // On a background thread, construct the Drawables:
-                                liner1.addAll(s1);
-                                liner2.addAll(s2);
-                                toUiThread.post(new ShowCharts(
-                                        drawChart(liner1, chart1),
-                                        drawChart(liner2, chart2)));
+                                ShowCharts show = new ShowCharts(drawCharts(lineSets));
+                                // On the UI thread, show the new charts:
+                                toUiThread.post(show);
                             }
                         }, 0);
                     } catch (IllegalStateException canceled) {
@@ -226,54 +222,56 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private static Collection<Sample> recent(Deque<Sample> from, long startTime) {
-        while (from.size() > 1 && getSecond(from).time < startTime) {
-            from.removeFirst();
+    private Collection<LineSet> newLineSets() {
+        Collection<LineSet> into = new ArrayList<>(charts.size());
+        int s = 0;
+        for (View chart : charts) {
+            into.add(new LineSet(chart, samples.get(s++)));
         }
-        return new ArrayList<>(from);
-    }
-
-    private static <T> T getSecond(Iterable<T> from) {
-        Iterator<T> i = from.iterator();
-        i.next();
-        return i.next();
+        return into;
     }
 
     private class ShowCharts implements Runnable {
 
-        private final Bitmap draw1;
-        private final Bitmap draw2;
+        private final Collection<Bitmap> images;
 
-        public ShowCharts(Bitmap draw1, Bitmap draw2) {
-            this.draw1 = draw1;
-            this.draw2 = draw2;
+        public ShowCharts(Collection<Bitmap> images) {
+            this.images = images;
         }
 
         @Override
         public void run() {
-            if (draw1 != null) {
-                chart1.setImageDrawable(new BitmapDrawable(getResources(), draw1));
-            }
-            if (draw2 != null) {
-                chart2.setImageDrawable(new BitmapDrawable(getResources(), draw2));
+            int c = 0;
+            for (Bitmap image : images) {
+                if (image != null) {
+                    charts.get(c).setImageDrawable(new BitmapDrawable(getResources(), image));
+                }
+                ++c;
             }
         }
     }
 
-    private Bitmap drawChart(LineSet liner, View chart) {
+    private Collection<Bitmap> drawCharts(Collection<LineSet> lineSets) {
+        Collection<Bitmap> into = new ArrayList<>(lineSets.size());
+        for (LineSet set : lineSets) {
+            into.add(drawChart(set));
+        }
+        return into;
+    }
+
+    private Bitmap drawChart(LineSet lines) {
         // Log.v(TAG, "draw into " + into);
-        if (liner == null || liner.isEmpty() || liner.width <= 0 || liner.height <= 0) {
+        if (lines == null || lines.isEmpty() || lines.width <= 0 || lines.height <= 0) {
             return null;
         }
-        Bitmap bitmap = Bitmap.createBitmap(liner.width, liner.height, Bitmap.Config.ARGB_8888);
+        Bitmap bitmap = Bitmap.createBitmap(lines.width, lines.height, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
-        // canvas.drawColor(Color.BLACK);
         Paint paint = new Paint();
         paint.setColor(Color.WHITE);
         paint.setStrokeWidth(LineSet.STROKE);
         paint.setStrokeCap(Paint.Cap.BUTT);
         // Log.v(TAG, "draw lines " + deltas(liner.lines));
-        canvas.drawLines(liner.toPoints(), paint);
+        canvas.drawLines(lines.toPoints(), paint);
         return bitmap;
     }
 
@@ -304,7 +302,8 @@ public class MainActivity extends AppCompatActivity {
         public void run() {
             try {
                 while (true) {
-                    toUiThread.post(new AddSample(samples, nextSample()));
+                    float value = nextSample();
+                    toUiThread.post(new AddSample(samples, new Sample(System.nanoTime(), value)));
                 }
             } catch (ConnectionLostException ignored) {
             } catch (Exception e) {
@@ -312,7 +311,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        protected abstract Sample nextSample()
+        protected abstract float nextSample()
                 throws ConnectionLostException, InterruptedException;
     }
 
@@ -327,14 +326,13 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @Override
-        protected Sample nextSample()
+        protected float nextSample()
                 throws ConnectionLostException, InterruptedException {
             float value;
             while ((value = input.read()) == lastValue) {
                 Thread.sleep(250);
             }
-            lastValue = value;
-            return new Sample(System.nanoTime(), value);
+            return (lastValue = value);
         }
     }
 
@@ -346,14 +344,10 @@ public class MainActivity extends AppCompatActivity {
         public WatchDigitalInput(int pin, DigitalInput input, Collection<Sample> samples) {
             super(pin, samples);
             this.input = input;
-            try {
-            } catch (Exception ignored) {
-            }
         }
 
-
         @Override
-        protected Sample nextSample()
+        protected float nextSample()
                 throws ConnectionLostException, InterruptedException {
             if (lastValue == null) {
                 lastValue = Boolean.valueOf(input.read());
@@ -361,7 +355,7 @@ public class MainActivity extends AppCompatActivity {
                 input.waitForValue(!lastValue);
                 lastValue = Boolean.valueOf(!lastValue);
             }
-            return new Sample(System.nanoTime(), lastValue ? 1 : 0);
+            return (lastValue ? 1 : 0);
         }
     }
 }

@@ -19,21 +19,39 @@ class LineSet {
 
     final int width;
     final int height;
-    final long startTime;
-    private final Collection<Line> lines = new ArrayList<>();
+    private final long startTime;
+    private final Collection<Sample> samples;
     private final long now = System.nanoTime();
+    private Collection<Line> lines = null;
 
-    LineSet(View chart) {
+    LineSet(View chart, Deque<Sample> samples) {
         width = chart.getWidth();
         height = chart.getHeight();
         startTime = now - (width * SEC / SCALE);
+        this.samples = recent(samples);
     }
 
     boolean isEmpty() {
-        return lines.isEmpty();
+        return samples.isEmpty();
     }
 
-    void addAll(Collection<Sample> samples) {
+    float[] toPoints() {
+        if (lines == null) {
+            computeLines();
+        }
+        float[] points = new float[lines.size() * 4];
+        int p = 0;
+        for (Line line : lines) {
+            points[p++] = line.fromX;
+            points[p++] = line.fromY;
+            points[p++] = line.toX;
+            points[p++] = line.toY;
+        }
+        return points;
+    }
+
+    private void computeLines() {
+        lines = new ArrayList<Line>(samples.size() + 1);
         if (samples.isEmpty()) {
             return;
         }
@@ -47,18 +65,6 @@ class LineSet {
         addLineFrom(last, now);
     }
 
-    float[] toPoints() {
-        float[] points = new float[lines.size() * 4];
-        int p = 0;
-        for (Line line : lines) {
-            points[p++] = line.fromX;
-            points[p++] = line.fromY;
-            points[p++] = line.toX;
-            points[p++] = line.toY;
-        }
-        return points;
-    }
-
     private void addLineFrom(Sample start, long endTime) {
         if (start.time <= endTime) {
             int lastX = Math.max(0, (int) ((start.time - startTime) * SCALE / SEC));
@@ -66,5 +72,18 @@ class LineSet {
             int y = HALF_STROKE + Math.round((1.0f - start.value) * (height - 1 - HALF_STROKE));
             lines.add(new Line(lastX, y, x, y));
         }
+    }
+
+    private Collection<Sample> recent(Deque<Sample> from) {
+        while (from.size() > 1 && getSecond(from).time < startTime) {
+            from.removeFirst();
+        }
+        return new ArrayList<>(from);
+    }
+
+    private static <T> T getSecond(Iterable<T> from) {
+        Iterator<T> i = from.iterator();
+        i.next();
+        return i.next();
     }
 }

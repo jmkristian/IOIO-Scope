@@ -12,6 +12,6 @@ class Sample {
 
     @Override
     public String toString() {
-        return "Point{" + time + ", " + value + '}';
+        return "Sample{" + time + "," + value + "}";
     }
 }
