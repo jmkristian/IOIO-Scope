@@ -33,12 +33,12 @@
         android:layout_height="32dp"
         android:layout_marginEnd="8dp"
         android:layout_marginRight="8dp"
+        android:background="@color/chartBackground"
         android:contentDescription="@string/description_chart"
         app:layout_constraintBottom_toBottomOf="@+id/label1"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="@+id/guideline"
-        app:layout_constraintTop_toTopOf="@+id/label1"
-        app:srcCompat="@android:color/black" />
+        app:layout_constraintTop_toTopOf="@+id/label1" />
 
     <TextView
         android:id="@+id/label2"
@@ -57,11 +57,11 @@
         android:layout_height="32dp"
         android:layout_marginEnd="8dp"
         android:layout_marginRight="8dp"
+        android:background="@color/chartBackground"
         android:contentDescription="@string/description_chart"
         app:layout_constraintBottom_toBottomOf="@+id/label2"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="@+id/guideline"
-        app:layout_constraintTop_toTopOf="@+id/label2"
-        app:srcCompat="@android:color/black" />
+        app:layout_constraintTop_toTopOf="@+id/label2" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
