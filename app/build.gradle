@@ -1,6 +1,14 @@
 apply plugin: 'com.android.application'
 
 android {
+    signingConfigs {
+        release {
+            storeFile file('C:\\Users\\John\\.android\\app-keystore.jks')
+            storePassword 'et2Brute?'
+            keyAlias = 'release'
+            keyPassword 'et2Brute?'
+        }
+    }
     compileSdkVersion 29
     buildToolsVersion "29.0.0"
     defaultConfig {

@@ -10,6 +10,8 @@
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
 .DS_Store
+/app/debug
+/app/release
 /app/src/main/java/ioio
 /build
 /captures
