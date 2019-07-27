@@ -8,6 +8,7 @@ import android.graphics.Paint;
 import android.graphics.drawable.BitmapDrawable;
 import android.os.Bundle;
 import android.os.Handler;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -19,6 +20,7 @@ import androidx.annotation.ColorInt;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.content.ContextCompat;
+import androidx.fragment.app.FragmentManager;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.Snackbar;
@@ -43,7 +45,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
 
-    private IOIOAndroidApplicationHelper ioio;
+    private IOIOFragment ioio;
     private Handler toUiThread;
     private Timer background;
     private TextView connectionStatus;
@@ -52,18 +54,12 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        Log.v(TAG, "onCreate");
         super.onCreate(savedInstanceState);
         toUiThread = new Handler();
         setContentView(R.layout.activity_main);
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        ioio = new IOIOAndroidApplicationHelper(this, new IOIOLooperProvider() {
-            @Override
-            public IOIOLooper createIOIOLooper(String connectionType, Object extra) {
-                return new IOIOListener();
-            }
-        });
-        ioio.create();
         FloatingActionButton fab = findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -73,6 +69,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         connectionStatus = findViewById(R.id.connectionStatus);
+        connectionStatus.setText("connecting ...");
         charts.add((ImageView) findViewById(R.id.chart1));
         charts.add((ImageView) findViewById(R.id.chart2));
         samples.add(new SampleSet());
@@ -86,33 +83,45 @@ public class MainActivity extends AppCompatActivity {
         return true;
     }
 
+    @Override
     protected void onDestroy() {
-        ioio.destroy();
+        Log.v(TAG, "onDestroy");
         super.onDestroy();
     }
 
+    @Override
     protected void onStart() {
+        Log.v(TAG, "onStart");
         super.onStart();
-        ioio.start();
+        FragmentManager fm = getSupportFragmentManager();
+        ioio = (IOIOFragment) fm.findFragmentByTag(IOIOFragment.TAG);
+        if (ioio == null) {
+            ioio = new IOIOFragment();
+            fm.beginTransaction().add(ioio, IOIOFragment.TAG).commit();
+        }
+        ioio.setListener(new IOIOListener());
         background = new Timer();
         background.schedule(
                 new DrawCharts(ContextCompat.getColor(this, R.color.chartForeground)),
                 0, 250);
     }
 
+    @Override
     protected void onStop() {
-        ioio.stop();
+        Log.v(TAG, "onStop");
         super.onStop();
+        ioio.setListener(null);
         background.cancel();
         for (SampleSet set : samples) {
             set.clear();
         }
     }
 
+    @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        if ((intent.getFlags() & 268435456) != 0) {
-            ioio.restart();
+        if (ioio != null) {
+            ioio.onNewIntent(intent);
         }
     }
 
@@ -140,38 +149,60 @@ public class MainActivity extends AppCompatActivity {
 
         private boolean status;
         private DigitalOutput statusLED;
+        private DigitalInput digital;
+        private AnalogInput analog;
 
         public void incompatible() {
+            Log.v(TAG, "incompatible");
             showStatus("IOIO firmware is incompatible", ioio_);
         }
 
         @Override
         protected void setup() throws ConnectionLostException {
+            Log.v(TAG, "setup");
             showStatus("connected", ioio_);
-            statusLED = ioio_.openDigitalOutput(0, true);
-            startDaemon(new WatchDigitalInput(
-                    1, ioio_.openDigitalInput(1, DigitalInput.Spec.Mode.PULL_UP),
-                    samples.get(0)));
-            startDaemon(new WatchAnalogInput(
-                    46, ioio_.openAnalogInput(46),
-                    samples.get(1)));
+            try {
+                statusLED = ioio_.openDigitalOutput(0, true);
+                digital = ioio_.openDigitalInput(1, DigitalInput.Spec.Mode.PULL_UP);
+                analog = ioio_.openAnalogInput(46);
+                startDaemon(new WatchDigitalInput(1, digital, samples.get(0)));
+                startDaemon(new WatchAnalogInput(46, analog, samples.get(1)));
+            } catch (ConnectionLostException e) {
+                Log.w(TAG, e);
+                throw e;
+            }
         }
 
         @Override
         public void loop() throws ConnectionLostException, InterruptedException {
+            Log.v(TAG, "loop");
             // Blink statusLED briefly, every 10 seconds:
-            statusLED.write(status = !status);
+            status = !status;
+            if (statusLED != null) {
+                statusLED.write(status);
+            }
             Thread.sleep(status ? 9900 : 100);
         }
 
         @Override
         public void disconnected() {
+            Log.v(TAG, "disconnected");
             showStatus("disconnected", null);
-            try {
-                if (statusLED != null) {
+            if (analog != null) {
+                analog.close();
+                analog = null;
+            }
+            if (digital != null) {
+                digital.close();
+                digital = null;
+            }
+            if (statusLED != null) {
+                try {
                     statusLED.write(false);
+                } catch (ConnectionLostException ignored) {
                 }
-            } catch (ConnectionLostException ignored) {
+                statusLED.close();
+                statusLED = null;
             }
         }
 
@@ -332,6 +363,9 @@ public class MainActivity extends AppCompatActivity {
 
         public WatchAnalogInput(int pin, AnalogInput input, SampleSet samples) {
             super(pin, samples);
+            if (input == null) {
+                Log.w(TAG, new NullPointerException("AnalogInput"));
+            }
             this.input = input;
         }
 
@@ -349,10 +383,13 @@ public class MainActivity extends AppCompatActivity {
     private class WatchDigitalInput extends WatchInput {
 
         private final DigitalInput input;
-        private Boolean lastValue = null;
+        private Boolean lastValue;
 
         public WatchDigitalInput(int pin, DigitalInput input, SampleSet samples) {
             super(pin, samples);
+            if (input == null) {
+                Log.w(TAG, new NullPointerException("DigitalInput"));
+            }
             this.input = input;
         }
 
