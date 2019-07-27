@@ -1,6 +1,5 @@
 package com.jkristian.ioio.scope;
 
-import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -20,7 +19,8 @@ import androidx.annotation.ColorInt;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.content.ContextCompat;
-import androidx.fragment.app.FragmentManager;
+import androidx.lifecycle.Observer;
+import androidx.lifecycle.ViewModelProviders;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.Snackbar;
@@ -31,31 +31,22 @@ import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import ioio.lib.api.AnalogInput;
-import ioio.lib.api.DigitalInput;
-import ioio.lib.api.DigitalOutput;
-import ioio.lib.api.IOIO;
-import ioio.lib.api.exception.ConnectionLostException;
-import ioio.lib.util.BaseIOIOLooper;
-import ioio.lib.util.IOIOLooper;
-import ioio.lib.util.IOIOLooperProvider;
-import ioio.lib.util.android.IOIOAndroidApplicationHelper;
-
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
 
-    private IOIOFragment ioio;
+    private IOIOViewModel model;
     private Handler toUiThread;
     private Timer background;
     private TextView connectionStatus;
     private List<ImageView> charts = new ArrayList<>();
-    private List<SampleSet> samples = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         Log.v(TAG, "onCreate");
         super.onCreate(savedInstanceState);
+        model = ViewModelProviders.of(this).get(IOIOViewModel.class);
+        model.setContext(this);
         toUiThread = new Handler();
         setContentView(R.layout.activity_main);
         Toolbar toolbar = findViewById(R.id.toolbar);
@@ -68,12 +59,22 @@ public class MainActivity extends AppCompatActivity {
                         .setAction("Action", null).show();
             }
         });
-        connectionStatus = findViewById(R.id.connectionStatus);
-        connectionStatus.setText("connecting ...");
         charts.add((ImageView) findViewById(R.id.chart1));
         charts.add((ImageView) findViewById(R.id.chart2));
-        samples.add(new SampleSet());
-        samples.add(new SampleSet());
+        connectionStatus = findViewById(R.id.connectionStatus);
+        connectionStatus.setText(model.getConnectionStatus().getValue());
+        model.getConnectionStatus().observe(this, new Observer<String>() {
+            @Override
+            public void onChanged(String status) {
+                connectionStatus.setText(status);
+            }
+        });
+        model.getToast().observe(this, new Observer<String>() {
+            @Override
+            public void onChanged(String message) {
+                toast(message);
+            }
+        });
     }
 
     @Override
@@ -93,13 +94,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onStart() {
         Log.v(TAG, "onStart");
         super.onStart();
-        FragmentManager fm = getSupportFragmentManager();
-        ioio = (IOIOFragment) fm.findFragmentByTag(IOIOFragment.TAG);
-        if (ioio == null) {
-            ioio = new IOIOFragment();
-            fm.beginTransaction().add(ioio, IOIOFragment.TAG).commit();
-        }
-        ioio.setListener(new IOIOListener());
         background = new Timer();
         background.schedule(
                 new DrawCharts(ContextCompat.getColor(this, R.color.chartForeground)),
@@ -110,18 +104,14 @@ public class MainActivity extends AppCompatActivity {
     protected void onStop() {
         Log.v(TAG, "onStop");
         super.onStop();
-        ioio.setListener(null);
         background.cancel();
-        for (SampleSet set : samples) {
-            set.clear();
-        }
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        if (ioio != null) {
-            ioio.onNewIntent(intent);
+        if (model != null) {
+            model.onNewIntent(intent);
         }
     }
 
@@ -138,102 +128,12 @@ public class MainActivity extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
-    /**
-     * Handle interaction with one IOIO board.
-     * Each time the activity starts, an instance is constructed for each board.
-     * For each instance, incompatible() or setup() is called once; then
-     * loop() is called repeatedly and finally disconnected() is called once
-     * when the activity stops.
-     */
-    private class IOIOListener extends BaseIOIOLooper {
-
-        private boolean status;
-        private DigitalOutput statusLED;
-        private DigitalInput digital;
-        private AnalogInput analog;
-
-        public void incompatible() {
-            Log.v(TAG, "incompatible");
-            showStatus("IOIO firmware is incompatible", ioio_);
-        }
-
-        @Override
-        protected void setup() throws ConnectionLostException {
-            Log.v(TAG, "setup");
-            showStatus("connected", ioio_);
-            try {
-                statusLED = ioio_.openDigitalOutput(0, true);
-                digital = ioio_.openDigitalInput(1, DigitalInput.Spec.Mode.PULL_UP);
-                analog = ioio_.openAnalogInput(46);
-                startDaemon(new WatchDigitalInput(1, digital, samples.get(0)));
-                startDaemon(new WatchAnalogInput(46, analog, samples.get(1)));
-            } catch (ConnectionLostException e) {
-                Log.w(TAG, e);
-                throw e;
-            }
-        }
-
-        @Override
-        public void loop() throws ConnectionLostException, InterruptedException {
-            Log.v(TAG, "loop");
-            // Blink statusLED briefly, every 10 seconds:
-            status = !status;
-            if (statusLED != null) {
-                statusLED.write(status);
-            }
-            Thread.sleep(status ? 9900 : 100);
-        }
-
-        @Override
-        public void disconnected() {
-            Log.v(TAG, "disconnected");
-            showStatus("disconnected", null);
-            if (analog != null) {
-                analog.close();
-                analog = null;
-            }
-            if (digital != null) {
-                digital.close();
-                digital = null;
-            }
-            if (statusLED != null) {
-                try {
-                    statusLED.write(false);
-                } catch (ConnectionLostException ignored) {
-                }
-                statusLED.close();
-                statusLED = null;
-            }
-        }
-
-        private void showStatus(String title, IOIO ioio) {
-            final StringBuilder status = new StringBuilder(title);
-            if (ioio != null) {
-                status.append(String.format(
-                        "\nIOIOLib: %s" +
-                                "\nApplication firmware: %s" +
-                                "\nBootloader firmware: %s" +
-                                "\nHardware: %s",
-                        ioio.getImplVersion(IOIO.VersionType.IOIOLIB_VER),
-                        ioio.getImplVersion(IOIO.VersionType.APP_FIRMWARE_VER),
-                        ioio.getImplVersion(IOIO.VersionType.BOOTLOADER_VER),
-                        ioio.getImplVersion(IOIO.VersionType.HARDWARE_VER)));
-            }
-            toUiThread.post(new Runnable() {
-                @Override
-                public void run() {
-                    connectionStatus.setText(status.toString());
-                }
-            });
-        }
-    }
-
     private class DrawCharts extends TimerTask {
 
         @ColorInt
         private final int color;
 
-        public DrawCharts(@ColorInt int color) {
+        DrawCharts(@ColorInt int color) {
             this.color = color;
         }
 
@@ -244,7 +144,7 @@ public class MainActivity extends AppCompatActivity {
                 public void run() {
                     // On the UI thread, look at the chart and sample sizes:
                     final Collection<LineSet> lines = newLineSets(charts);
-                    final List<SampleSet> data = new ArrayList<>(samples);
+                    final List<SampleSet> data = new ArrayList<>(model.samples);
                     try {
                         // On a background thread, convert the data to images:
                         background.schedule(new TimerTask() {
@@ -274,7 +174,7 @@ public class MainActivity extends AppCompatActivity {
 
         private final Collection<Bitmap> images;
 
-        public ShowCharts(Collection<Bitmap> images) {
+        ShowCharts(Collection<Bitmap> images) {
             this.images = images;
         }
 
@@ -329,96 +229,7 @@ public class MainActivity extends AppCompatActivity {
         return into;
     }
 
-    private abstract class WatchInput implements Runnable {
-
-        private final int pin;
-        private final SampleSet samples;
-
-        WatchInput(int pin, SampleSet samples) {
-            this.pin = pin;
-            this.samples = samples;
-        }
-
-        @Override
-        public void run() {
-            try {
-                while (true) {
-                    float value = nextSample();
-                    samples.add(new Sample(System.nanoTime(), value));
-                }
-            } catch (ConnectionLostException ignored) {
-            } catch (Exception e) {
-                toast("input " + pin + ": " + e);
-            }
-        }
-
-        protected abstract float nextSample()
-                throws ConnectionLostException, InterruptedException;
-    }
-
-    private class WatchAnalogInput extends WatchInput {
-
-        private final AnalogInput input;
-        private float lastValue = Float.NaN;
-
-        public WatchAnalogInput(int pin, AnalogInput input, SampleSet samples) {
-            super(pin, samples);
-            if (input == null) {
-                Log.w(TAG, new NullPointerException("AnalogInput"));
-            }
-            this.input = input;
-        }
-
-        @Override
-        protected float nextSample()
-                throws ConnectionLostException, InterruptedException {
-            float value;
-            while ((value = input.read()) == lastValue) {
-                Thread.sleep(250);
-            }
-            return (lastValue = value);
-        }
-    }
-
-    private class WatchDigitalInput extends WatchInput {
-
-        private final DigitalInput input;
-        private Boolean lastValue;
-
-        public WatchDigitalInput(int pin, DigitalInput input, SampleSet samples) {
-            super(pin, samples);
-            if (input == null) {
-                Log.w(TAG, new NullPointerException("DigitalInput"));
-            }
-            this.input = input;
-        }
-
-        @Override
-        protected float nextSample()
-                throws ConnectionLostException, InterruptedException {
-            if (lastValue == null) {
-                lastValue = Boolean.valueOf(input.read());
-            } else {
-                input.waitForValue(!lastValue);
-                lastValue = Boolean.valueOf(!lastValue);
-            }
-            return (lastValue ? 1 : 0);
-        }
-    }
-
     private void toast(final String message) {
-        final Context context = this;
-        toUiThread.post(new Runnable() {
-            @Override
-            public void run() {
-                Toast.makeText(context, message, Toast.LENGTH_LONG).show();
-            }
-        });
-    }
-
-    private static void startDaemon(Runnable toDo) {
-        Thread thread = new Thread(toDo);
-        thread.setDaemon(true);
-        thread.start();
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
     }
 }
