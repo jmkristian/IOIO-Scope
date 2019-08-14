@@ -3,6 +3,7 @@ package com.jkristian.ioio.scope
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import android.telephony.SmsManager
 import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -149,7 +150,7 @@ class IOIOViewModel : ViewModel() {
         }
     }
 
-    private abstract inner class WatchInput internal constructor(private val pin: Int, private val samples: SampleSet) : Runnable {
+    private abstract inner class WatchInput internal constructor(val pin: Int, val samples: SampleSet) : Runnable {
 
         override fun run() {
             try {
@@ -169,6 +170,7 @@ class IOIOViewModel : ViewModel() {
     }
 
     private inner class WatchAnalogInput internal constructor(pin: Int, private val input: AnalogInput, samples: SampleSet) : WatchInput(pin, samples) {
+
         private var lastValue = java.lang.Float.NaN
 
         init {
@@ -192,7 +194,9 @@ class IOIOViewModel : ViewModel() {
         }
     }
 
-    private inner class WatchDigitalInput internal constructor(pin: Int, private val input: DigitalInput, samples: SampleSet) : WatchInput(pin, samples) {
+    private inner class WatchDigitalInput
+    internal constructor(pin: Int, private val input: DigitalInput, samples: SampleSet)
+        : WatchInput(pin, samples) {
 
         private var hasValue: Boolean = false
         private var lastValue: Boolean = false
@@ -205,6 +209,22 @@ class IOIOViewModel : ViewModel() {
             } else {
                 input.waitForValue(!lastValue)
                 lastValue = !lastValue
+                if (lastValue) {
+                    val last2 = samples.getLast(2)
+                    if (last2.size >= 2) {
+                        val elapsed = (System.nanoTime() - last2[1].time).toDouble() / LineSet.SEC
+                        val message = String.format("input %d was false for %.3f sec", pin, elapsed)
+                        Log.i(TAG, message)
+                        try {
+                            SmsManager.getDefault().sendTextMessage(
+                                    "6507144559", null,
+                                    message, null, null)
+                        } catch (e: SecurityException) {
+                            toast.postValue("" + e)
+                            Log.w(TAG, e)
+                        }
+                    }
+                }
             }
             return (if (lastValue) 1.0f else 0.0f)
         }

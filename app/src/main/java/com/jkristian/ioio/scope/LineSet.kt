@@ -49,7 +49,7 @@ internal class LineSet(chart: View) {
     }
 
     private fun addLineFrom(lines: MutableCollection<Line>, start: Sample, endTime: Long) {
-        if (start.time <= endTime) {
+        if (start.time - endTime <= 0) {
             val fromX = Math.max(0, ((start.time - startTime) * SCALE / SEC).toInt())
             val toX = Math.min(width - 1, ((endTime - startTime) * SCALE / SEC).toInt())
             val y = HALF_STROKE + Math.round((1.0f - start.value) * (height - 1 - HALF_STROKE))
@@ -58,10 +58,9 @@ internal class LineSet(chart: View) {
     }
 
     companion object {
-
+        val SEC = 1000000000L
         val STROKE = 4
         private val HALF_STROKE = 2
         private val SCALE = 16 // pixels/second
-        private val SEC = 1000000000L
     }
 }

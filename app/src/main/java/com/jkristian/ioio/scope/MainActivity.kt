@@ -1,6 +1,8 @@
 package com.jkristian.ioio.scope
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -14,20 +16,16 @@ import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
-
 import androidx.annotation.ColorInt
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProviders
-
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.snackbar.Snackbar
-
-import java.util.ArrayList
-import java.util.Timer
-import java.util.TimerTask
+import java.util.*
 
 class MainActivity : AppCompatActivity() {
 
@@ -77,6 +75,10 @@ class MainActivity : AppCompatActivity() {
         background!!.schedule(
                 DrawCharts(ContextCompat.getColor(this, R.color.chartForeground)),
                 0, 250)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.SEND_SMS), 1)
+        }
     }
 
     override fun onStop() {
@@ -91,6 +93,14 @@ class MainActivity : AppCompatActivity() {
         if (model != null) {
             model!!.onNewIntent(intent)
         }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, results: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, results)
+        Log.i(TAG, "onRequestPermissionsResult("
+                + requestCode
+                + ", " + permissions.contentToString()
+                + ", " + results + ")")
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {

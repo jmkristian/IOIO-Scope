@@ -25,10 +25,21 @@ internal class SampleSet {
 
     @Synchronized
     fun getRecent(startTime: Long): List<Sample> {
-        while (samples.size > 1 && getSecond(samples).time < startTime) {
+        while (samples.size > 1 && (getSecond(samples).time - startTime) < 0) {
             samples.removeFirst()
         }
         return ArrayList(samples)
+    }
+
+    @Synchronized
+    fun getLast(count: Int): List<Sample> {
+        val into = ArrayList<Sample>(count)
+        var iter = samples.descendingIterator()
+        var limit = count
+        while (iter.hasNext() && limit-- > 0) {
+            into.add(0, iter.next())
+        }
+        return into
     }
 
     private fun <T> getSecond(from: Iterable<T>): T {
