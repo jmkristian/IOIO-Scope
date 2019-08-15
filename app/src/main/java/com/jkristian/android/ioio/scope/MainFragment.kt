@@ -1,8 +1,6 @@
-package com.jkristian.ioio.scope
+package com.jkristian.android.ioio.scope
 
-import android.Manifest
-import android.content.Intent
-import android.content.pm.PackageManager
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -10,112 +8,83 @@ import android.graphics.drawable.BitmapDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.util.Log
-import android.view.Menu
-import android.view.MenuItem
+import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.ColorInt
-import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.widget.Toolbar
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.fragment.app.Fragment
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProviders
 import com.google.android.material.floatingactionbutton.FloatingActionButton
-import com.google.android.material.snackbar.Snackbar
+import com.jkristian.ioio.scope.*
+import com.jkristian.ioio.scope.Line
+import com.jkristian.ioio.scope.LineSet
+import com.jkristian.ioio.scope.SampleSet
 import java.util.*
 
-class MainActivity : AppCompatActivity() {
+private const val TAG = "MainFragment"
+// TODO: Rename parameter arguments, choose names that match
+// the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
+// private const val ARG_PARAM1 = "param1"
 
-    private var model: IOIOViewModel? = null
-    private var toUiThread: Handler? = null
+class MainFragment : Fragment() {
+    // TODO: Rename and change types of parameters
+    // private var param1: String? = null
+
     private var background: Timer? = null
-    private var connectionStatus: TextView? = null
+    private var toUiThread: Handler? = null
+    private var model: IOIOViewModel? = null
     private val charts = ArrayList<ImageView>()
+    private var connectionStatus: TextView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Log.v(TAG, "onCreate")
         super.onCreate(savedInstanceState)
-        model = ViewModelProviders.of(this).get(IOIOViewModel::class.java!!)
-        model!!.setContext(this)
-        toUiThread = Handler()
-        setContentView(R.layout.activity_main)
-        val toolbar = findViewById<Toolbar>(R.id.toolbar)
-        setSupportActionBar(toolbar)
-        val fab = findViewById<FloatingActionButton>(R.id.fab)
-        fab.setOnClickListener { view ->
-            Snackbar.make(view, "TBD", Snackbar.LENGTH_LONG)
-                    .setAction("Action", null).show()
+/*
+        arguments?.let {
+            param1 = it.getString(ARG_PARAM1)
         }
-        charts.add(findViewById<View>(R.id.chart1) as ImageView)
-        charts.add(findViewById<View>(R.id.chart2) as ImageView)
-        connectionStatus = findViewById(R.id.connectionStatus)
-        connectionStatus!!.text = model!!.getConnectionStatus().value
-        model!!.getConnectionStatus().observe(this, Observer { status -> connectionStatus!!.text = status })
-        model!!.getToast().observe(this, Observer { message -> toast(message) })
+*/
+        toUiThread = Handler()
     }
 
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        menuInflater.inflate(R.menu.menu_main, menu)
-        return true
-    }
-
-    override fun onDestroy() {
-        Log.v(TAG, "onDestroy")
-        super.onDestroy()
-    }
-
-    override fun onStart() {
-        Log.v(TAG, "onStart")
-        super.onStart()
+    override fun onAttach(context: Context) {
+        Log.v(TAG, "onAttach")
+        super.onAttach(context)
         background = Timer()
         background!!.schedule(
-                DrawCharts(ContextCompat.getColor(this, R.color.chartForeground)),
+                DrawCharts(ContextCompat.getColor(context!!, R.color.chartForeground)),
                 0, 250)
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)
-                != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.SEND_SMS), 1)
-        }
     }
 
-    override fun onStop() {
-        Log.v(TAG, "onStop")
-        super.onStop()
+    override fun onDetach() {
+        Log.v(TAG, "onDetach")
+        super.onDetach()
         background!!.cancel()
         background = null
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        if (model != null) {
-            model!!.onNewIntent(intent)
-        }
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
+                              savedInstanceState: Bundle?): View? {
+        Log.v(TAG, "onCreateView")
+        var layout = inflater.inflate(R.layout.fragment_main, container, false)
+        charts.clear()
+        charts.add(layout.findViewById<View>(R.id.chart1) as ImageView)
+        charts.add(layout.findViewById<View>(R.id.chart46) as ImageView)
+        model = ViewModelProviders.of(activity!!).get(IOIOViewModel::class.java)
+        connectionStatus = layout.findViewById(R.id.connectionStatus)
+        connectionStatus!!.text = model!!.getConnectionStatus().value
+        model!!.getConnectionStatus().observe(this, Observer { status -> connectionStatus!!.text = status })
+        model!!.getToast().observe(this, Observer { message -> toast(message) })
+        return layout
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, results: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, results)
-        Log.i(TAG, "onRequestPermissionsResult("
-                + requestCode
-                + ", " + permissions.contentToString()
-                + ", " + results + ")")
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        val id = item.itemId
-
-        return if (id == R.id.action_settings) {
-            true
-        } else super.onOptionsItemSelected(item)
-    }
-
-    private inner class DrawCharts internal constructor(@param:ColorInt @field:ColorInt
-                                                        private val color: Int) : TimerTask() {
+    private inner class DrawCharts internal
+    constructor(@param:ColorInt @field:ColorInt private val color: Int) : TimerTask() {
 
         override fun run() {
             toUiThread!!.post {
@@ -126,7 +95,7 @@ class MainActivity : AppCompatActivity() {
                     // On a background thread, convert the data to images:
                     background!!.schedule(object : TimerTask() {
                         override fun run() {
-                            val show = ShowCharts(drawCharts(lines, data, color))
+                            val show = ShowCharts(MainFragment.drawCharts(lines, data, color))
                             // On the UI thread, show the new images:
                             toUiThread!!.post(show)
                         }
@@ -159,12 +128,26 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun toast(message: String) {
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+        Toast.makeText(this.context, message, Toast.LENGTH_LONG).show()
     }
 
     companion object {
-
-        private val TAG = "MainActivity"
+        /**
+         * Use this factory method to create a new instance of
+         * this fragment using the provided parameters.
+         *
+         * @param param1 Parameter 1.
+         * @param param2 Parameter 2.
+         * @return A new instance of fragment MainFragment.
+         */
+        // TODO: Rename and change types and number of parameters
+        @JvmStatic
+        fun newInstance(param1: String) =
+                MainFragment().apply {
+                    arguments = Bundle().apply {
+                        // putString(ARG_PARAM1, param1)
+                    }
+                }
 
         private fun drawCharts(
                 lineSets: Collection<LineSet>, samples: List<SampleSet>, @ColorInt color: Int): Collection<Bitmap?> {

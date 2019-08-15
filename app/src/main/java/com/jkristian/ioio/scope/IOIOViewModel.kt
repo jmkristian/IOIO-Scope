@@ -8,6 +8,7 @@ import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import androidx.preference.PreferenceManager
 import ioio.lib.api.AnalogInput
 import ioio.lib.api.DigitalInput
 import ioio.lib.api.DigitalOutput
@@ -18,9 +19,12 @@ import ioio.lib.util.IOIOLooperProvider
 import ioio.lib.util.android.IOIOAndroidApplicationHelper
 import java.util.*
 
+private const val TAG = "IOIOViewModel"
+
 class IOIOViewModel : ViewModel() {
 
     internal var samples: MutableList<SampleSet> = ArrayList()
+    private var context: Context? = null
     private var helper: IOIOAndroidApplicationHelper? = null
     private val connectionStatus = MutableLiveData<String>()
     private val toast = MutableLiveData<String>()
@@ -34,6 +38,7 @@ class IOIOViewModel : ViewModel() {
 
     internal fun setContext(context: Context) {
         Log.v(TAG, "setContext")
+        this.context = context
         if (helper == null) {
             helper = IOIOAndroidApplicationHelper(
                     ContextWrapper(context.applicationContext),
@@ -216,10 +221,13 @@ class IOIOViewModel : ViewModel() {
                         val message = String.format("input %d was false for %.3f sec", pin, elapsed)
                         Log.i(TAG, message)
                         try {
+                            val destination = PreferenceManager
+                                    .getDefaultSharedPreferences(context)
+                                    ?.getString("SMS_to", "")
                             SmsManager.getDefault().sendTextMessage(
-                                    "6507144559", null,
+                                    destination, null,
                                     message, null, null)
-                        } catch (e: SecurityException) {
+                        } catch (e: Exception) {
                             toast.postValue("" + e)
                             Log.w(TAG, e)
                         }
@@ -231,9 +239,6 @@ class IOIOViewModel : ViewModel() {
     }
 
     companion object {
-
-        private val TAG = "IOIOViewModel"
-
         private fun startDaemon(toDo: Runnable) {
             val thread = Thread(toDo)
             thread.isDaemon = true

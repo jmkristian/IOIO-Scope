@@ -8,12 +8,12 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/AppTheme">
+        android:theme="@style/ThemeOverlay.AppCompat.Dark">
         <uses-library
             android:name="com.android.future.usb.accessory"
             android:required="false" />
         <activity
-            android:name=".MainActivity"
+            android:name="com.jkristian.android.ioio.scope.MainActivity"
             android:label="@string/app_name"
             android:theme="@style/AppTheme.NoActionBar">
             <intent-filter>
