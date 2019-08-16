@@ -59,7 +59,7 @@ class MainFragment : Fragment() {
         model!!.getConnectionStatus().observe(this, Observer { status ->
             connectionStatus!!.text = status
         })
-        model!!.getToast().observe(this, Observer { message ->
+        model!!.getWarning().observe(this, Observer { message ->
             toast(message)
         })
         layout.viewTreeObserver.addOnGlobalLayoutListener(object : OnGlobalLayoutListener {

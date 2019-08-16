@@ -1,10 +1,10 @@
 package com.jkristian.android.ioio.scope
 
 import android.content.Context
-import android.content.ContextWrapper
 import android.content.Intent
 import android.telephony.SmsManager
 import android.util.Log
+import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -26,56 +26,68 @@ private const val TAG = "IOIOViewModel"
 class IOIOViewModel : ViewModel() {
 
     internal val samples = listOf(SampleSet(), SampleSet())
-    internal var helper: IOIOAndroidApplicationHelper? = null
+    private var helper: IOIOAndroidApplicationHelper? = null
     private var context: Context? = null
     private val connectionStatus = MutableLiveData<String>()
-    private val toast = MutableLiveData<String>()
+    private val warning = MutableLiveData<String>()
 
     init {
         Log.v(TAG, "<init>")
-        connectionStatus.value = "connecting..."
+        showStatus("", null)
     }
 
-    internal fun setContext(context: ContextWrapper) {
-        Log.v(TAG, "setContext")
-        this.context = context
-        try {
-            helper?.stop()
-            helper?.destroy()
-        } catch (e: Exception) {
-            Log.w(TAG, e);
+    internal fun setContext(context: AppCompatActivity) {
+        if (this.context != context) {
+            this.context = context
+            showStatus("connecting...", null)
+            helper = IOIOAndroidApplicationHelper(context,
+                    IOIOLooperProvider { connectionType, extra -> IOIOListener() })
+            context.lifecycle.addObserver(IOIOLifecycleObserver(helper!!, warning))
         }
-        helper = IOIOAndroidApplicationHelper(context,
-                IOIOLooperProvider { connectionType, extra -> IOIOListener() })
-        helper!!.create()
     }
 
     internal fun onNewIntent(intent: Intent) {
         if (intent.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0) {
-            Log.v(TAG, "onNewIntent")
-            helper?.restart()
+            showStatus("restarting...", null)
+            try {
+                helper?.restart()
+            } catch (e: Exception) {
+                warning.postValue(TAG + ".onNewIntent" + e);
+                Log.w(TAG, e)
+            }
         }
     }
 
     override fun onCleared() {
         Log.v(TAG, "onCleared")
         super.onCleared()
-        try {
-            helper?.stop()
-            helper?.destroy()
-        } catch (e: Exception) {
-            toast.postValue("" + e);
-            Log.w(TAG, e)
-        }
         helper = null
+        context = null
     }
 
     internal fun getConnectionStatus(): LiveData<String> {
         return connectionStatus
     }
 
-    internal fun getToast(): LiveData<String> {
-        return toast
+    internal fun getWarning(): LiveData<String> {
+        return warning
+    }
+
+    private fun showStatus(title: String, ioio: IOIO?) {
+        Log.v(TAG, "showStatus " + title)
+        val status = StringBuilder(title)
+        if (ioio != null) {
+            status.append(String.format(
+                    "\nIOIOLib: %s" +
+                            "\nApplication firmware: %s" +
+                            "\nBootloader firmware: %s" +
+                            "\nHardware: %s",
+                    ioio.getImplVersion(IOIO.VersionType.IOIOLIB_VER),
+                    ioio.getImplVersion(IOIO.VersionType.APP_FIRMWARE_VER),
+                    ioio.getImplVersion(IOIO.VersionType.BOOTLOADER_VER),
+                    ioio.getImplVersion(IOIO.VersionType.HARDWARE_VER)))
+        }
+        connectionStatus.postValue(status.toString())
     }
 
     /**
@@ -93,13 +105,11 @@ class IOIOViewModel : ViewModel() {
         private var analog: AnalogInput? = null
 
         override fun incompatible() {
-            Log.v(TAG, "incompatible")
             showStatus("IOIO firmware is incompatible", ioio_)
         }
 
         @Throws(ConnectionLostException::class)
         override fun setup() {
-            Log.v(TAG, "setup")
             showStatus("connected", ioio_)
             try {
                 statusLED = ioio_.openDigitalOutput(0, true)
@@ -108,7 +118,7 @@ class IOIOViewModel : ViewModel() {
                 startDaemon(WatchDigitalInput(1, digital!!, samples[0]))
                 startDaemon(WatchAnalogInput(46, analog!!, samples[1]))
             } catch (e: ConnectionLostException) {
-                toast.postValue("" + e)
+                warning.postValue("" + e)
                 throw e
             }
 
@@ -126,7 +136,6 @@ class IOIOViewModel : ViewModel() {
         }
 
         override fun disconnected() {
-            Log.v(TAG, "disconnected")
             showStatus("disconnected", null)
             analog?.close()
             analog = null
@@ -140,22 +149,6 @@ class IOIOViewModel : ViewModel() {
             statusLED?.close()
             statusLED = null
         }
-
-        private fun showStatus(title: String, ioio: IOIO?) {
-            val status = StringBuilder(title)
-            if (ioio != null) {
-                status.append(String.format(
-                        "\nIOIOLib: %s" +
-                                "\nApplication firmware: %s" +
-                                "\nBootloader firmware: %s" +
-                                "\nHardware: %s",
-                        ioio.getImplVersion(IOIO.VersionType.IOIOLIB_VER),
-                        ioio.getImplVersion(IOIO.VersionType.APP_FIRMWARE_VER),
-                        ioio.getImplVersion(IOIO.VersionType.BOOTLOADER_VER),
-                        ioio.getImplVersion(IOIO.VersionType.HARDWARE_VER)))
-            }
-            connectionStatus.postValue(status.toString())
-        }
     }
 
     private abstract inner class WatchInput
@@ -168,13 +161,13 @@ class IOIOViewModel : ViewModel() {
                     val value = nextSample()
                     samples.add(Sample(System.nanoTime(), value))
                 }
-            } catch (e: ConnectionLostException) {
-                // ignored
-            } catch (e: IllegalStateException) { // Trying to use a closed resouce
+            } catch (e: ConnectionLostException) { // ignored
+            } catch (e: InterruptedException) { // ignored
+            } catch (e: IllegalStateException) { // maybe trying to use a closed resouce
                 Log.w(TAG, e)
             } catch (e: Exception) {
                 Log.w(TAG, e)
-                toast.postValue("input $pin: $e")
+                warning.postValue("input $pin: $e")
             }
         }
 
@@ -190,7 +183,7 @@ class IOIOViewModel : ViewModel() {
 
         init {
             if (input == null) {
-                toast.postValue("$pin AnalogInput is null")
+                warning.postValue("$pin AnalogInput is null")
             }
         }
 
@@ -231,14 +224,16 @@ class IOIOViewModel : ViewModel() {
                         val message = String.format("input %d was false for %.3f sec", pin, elapsed)
                         Log.i(TAG, message)
                         try {
-                            val destination = PreferenceManager.getDefaultSharedPreferences(context)
-                                    ?.getString("SMS_to", "")
-                            SmsManager.getDefault().sendTextMessage(
-                                    destination, null,
-                                    message, null, null)
+                            val destination = PreferenceManager
+                                    .getDefaultSharedPreferences(context)?.getString("SMS_to", "")
+                            if (destination != null && destination.isNotEmpty()) {
+                                SmsManager.getDefault().sendTextMessage(
+                                        destination, null,
+                                        message, null, null)
+                            }
                         } catch (e: Exception) {
                             Log.w(TAG, e)
-                            toast.postValue("" + e)
+                            warning.postValue(TAG + " send SMS " + e)
                         }
                     }
                 }

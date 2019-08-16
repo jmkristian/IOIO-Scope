@@ -13,7 +13,9 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProviders
 import androidx.navigation.findNavController
-import androidx.navigation.ui.*
+import androidx.navigation.ui.AppBarConfiguration
+import androidx.navigation.ui.onNavDestinationSelected
+import androidx.navigation.ui.setupWithNavController
 import com.jkristian.ioio.scope.R
 
 private const val TAG = "MainActivity"
@@ -27,7 +29,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         model = ViewModelProviders.of(this).get(IOIOViewModel::class.java!!)
-        model!!.setContext(this)
+        model?.setContext(this)
 
         val actionBar = findViewById<Toolbar>(R.id.toolbar)
         setSupportActionBar(actionBar)
@@ -47,26 +49,13 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
-    override fun onDestroy() {
-        Log.v(TAG, "onDestroy")
-        model?.helper?.destroy()
-        super.onDestroy()
-    }
-
     override fun onStart() {
         Log.v(TAG, "onStart")
         super.onStart()
-        model?.helper?.start()
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)
                 != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.SEND_SMS), 1)
         }
-    }
-
-    override fun onStop() {
-        Log.v(TAG, "onStop")
-        model?.helper?.stop()
-        super.onStop()
     }
 
     override fun onNewIntent(intent: Intent) {
