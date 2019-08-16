@@ -17,24 +17,23 @@ internal class Chart(private val view: ImageView) {
 
     private val width: Int = view.width
     private val height: Int = view.height
+    private val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
     private var samples: SampleSet? = null
     private var now: Long = 0
     private var startTime: Long = 0
-    private var image: Bitmap? = null
 
     fun setSamples(samples: SampleSet?) {
         this.samples = samples
         now = System.nanoTime()
         startTime = now - (width * SEC / SCALE)
-        image = null
     }
 
     fun draw(@ColorInt color: Int) {
+        val canvas = Canvas(bitmap)
+        canvas.drawARGB(0xFF, 0, 0, 0)
         val data = samples
         if (width > 0 && height > 0 && data != null && !data.isEmpty) {
             // Log.v(TAG, "draw samples " + data);
-            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(bitmap)
             val paint = Paint()
             paint.color = color
             paint.strokeWidth = STROKE.toFloat()
@@ -42,12 +41,11 @@ internal class Chart(private val view: ImageView) {
             val points = toPoints(data)
             // Log.v(TAG, "drawLines in " + width + " " + deltas(points));
             canvas.drawLines(points, paint)
-            image = bitmap
         }
     }
 
     fun show() {
-        view.setImageDrawable(BitmapDrawable(view.resources, image))
+        view.setImageDrawable(BitmapDrawable(view.resources, bitmap))
     }
 
     private fun toPoints(samples: SampleSet): FloatArray {
