@@ -4,7 +4,8 @@
     tools:context="com.jkristian.ioio.scope.com.jkristian.android.ioio.scope.MainActivity">
     <item
         android:id="@+id/settingsFragment"
+        android:icon="@drawable/ic_settings_black_24dp"
         android:orderInCategory="100"
         android:title="@string/settings"
-        app:showAsAction="never" />
+        app:showAsAction="ifRoom" />
 </menu>
