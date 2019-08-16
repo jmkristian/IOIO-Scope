@@ -24,8 +24,13 @@ internal class SampleSet {
     }
 
     @Synchronized
+    override fun toString(): String {
+        return samples.toString()
+    }
+
+    @Synchronized
     fun getRecent(startTime: Long): List<Sample> {
-        while (samples.size > 1 && (getSecond(samples).time - startTime) < 0) {
+        while (samples.size > 1 && (startTime - getSecond(samples).time >= 0)) {
             samples.removeFirst()
         }
         return ArrayList(samples)

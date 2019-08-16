@@ -3,7 +3,6 @@ package com.jkristian.android.ioio.scope
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.Menu
@@ -13,10 +12,8 @@ import androidx.appcompat.widget.Toolbar
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProviders
-import androidx.navigation.NavController
 import androidx.navigation.findNavController
 import androidx.navigation.ui.*
-import com.jkristian.ioio.scope.IOIOViewModel
 import com.jkristian.ioio.scope.R
 
 private const val TAG = "MainActivity"

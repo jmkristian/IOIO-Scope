@@ -1,4 +1,4 @@
-package com.jkristian.ioio.scope
+package com.jkristian.android.ioio.scope
 
 import android.content.Context
 import android.content.ContextWrapper
@@ -9,6 +9,9 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.preference.PreferenceManager
+import com.jkristian.ioio.scope.Chart
+import com.jkristian.ioio.scope.Sample
+import com.jkristian.ioio.scope.SampleSet
 import ioio.lib.api.AnalogInput
 import ioio.lib.api.DigitalInput
 import ioio.lib.api.DigitalOutput
@@ -17,13 +20,14 @@ import ioio.lib.api.exception.ConnectionLostException
 import ioio.lib.util.BaseIOIOLooper
 import ioio.lib.util.IOIOLooperProvider
 import ioio.lib.util.android.IOIOAndroidApplicationHelper
-import java.util.*
+import java.util.ArrayList
 
 private const val TAG = "IOIOViewModel"
 
 class IOIOViewModel : ViewModel() {
 
     internal var samples: MutableList<SampleSet> = ArrayList()
+
     private var context: Context? = null
     private var helper: IOIOAndroidApplicationHelper? = null
     private val connectionStatus = MutableLiveData<String>()
@@ -155,7 +159,9 @@ class IOIOViewModel : ViewModel() {
         }
     }
 
-    private abstract inner class WatchInput internal constructor(val pin: Int, val samples: SampleSet) : Runnable {
+    private abstract inner class WatchInput
+    internal constructor(val pin: Int, val samples: SampleSet)
+        : Runnable {
 
         override fun run() {
             try {
@@ -174,7 +180,9 @@ class IOIOViewModel : ViewModel() {
         protected abstract fun nextSample(): Float
     }
 
-    private inner class WatchAnalogInput internal constructor(pin: Int, private val input: AnalogInput, samples: SampleSet) : WatchInput(pin, samples) {
+    private inner class WatchAnalogInput
+    internal constructor(pin: Int, private val input: AnalogInput, samples: SampleSet)
+        : WatchInput(pin, samples) {
 
         private var lastValue = java.lang.Float.NaN
 
@@ -217,12 +225,11 @@ class IOIOViewModel : ViewModel() {
                 if (lastValue) {
                     val last2 = samples.getLast(2)
                     if (last2.size >= 2) {
-                        val elapsed = (System.nanoTime() - last2[1].time).toDouble() / LineSet.SEC
+                        val elapsed = (System.nanoTime() - last2[1].time).toDouble() / Chart.SEC
                         val message = String.format("input %d was false for %.3f sec", pin, elapsed)
                         Log.i(TAG, message)
                         try {
-                            val destination = PreferenceManager
-                                    .getDefaultSharedPreferences(context)
+                            val destination = PreferenceManager.getDefaultSharedPreferences(context)
                                     ?.getString("SMS_to", "")
                             SmsManager.getDefault().sendTextMessage(
                                     destination, null,
