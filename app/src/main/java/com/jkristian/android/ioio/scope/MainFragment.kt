@@ -63,12 +63,14 @@ class MainFragment : Fragment() {
             toast(message)
         })
         layout.viewTreeObserver.addOnGlobalLayoutListener(object : OnGlobalLayoutListener {
+            var done = false
             override fun onGlobalLayout() {
                 // layout.viewTreeObserver.removeOnGlobalLayoutListener(this) requires API 16
-                if (charts.isEmpty()) {
+                if (!done) {
                     charts = listOf(
                             Chart(layout.findViewById(R.id.chart1)),
                             Chart(layout.findViewById(R.id.chart46)))
+                    done = true
                 }
             }
         })
