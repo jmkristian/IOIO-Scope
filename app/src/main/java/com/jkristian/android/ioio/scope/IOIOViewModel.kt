@@ -26,8 +26,8 @@ private const val TAG = "IOIOViewModel"
 class IOIOViewModel : ViewModel() {
 
     internal val samples = listOf(SampleSet(), SampleSet())
+    internal var helper: IOIOAndroidApplicationHelper? = null
     private var context: Context? = null
-    private var helper: IOIOAndroidApplicationHelper? = null
     private val connectionStatus = MutableLiveData<String>()
     private val toast = MutableLiveData<String>()
 
@@ -36,30 +36,38 @@ class IOIOViewModel : ViewModel() {
         connectionStatus.value = "connecting..."
     }
 
-    internal fun setContext(context: Context) {
+    internal fun setContext(context: ContextWrapper) {
         Log.v(TAG, "setContext")
         this.context = context
-        if (helper == null) {
-            helper = IOIOAndroidApplicationHelper(
-                    ContextWrapper(context.applicationContext),
-                    IOIOLooperProvider { connectionType, extra -> IOIOListener() })
-            helper!!.create()
-            helper!!.start()
+        try {
+            helper?.stop()
+            helper?.destroy()
+        } catch (e: Exception) {
+            Log.w(TAG, e);
         }
+        helper = IOIOAndroidApplicationHelper(context,
+                IOIOLooperProvider { connectionType, extra -> IOIOListener() })
+        helper!!.create()
     }
 
     internal fun onNewIntent(intent: Intent) {
         if (intent.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0) {
             Log.v(TAG, "onNewIntent")
-            helper!!.restart()
+            helper?.restart()
         }
     }
 
     override fun onCleared() {
         Log.v(TAG, "onCleared")
         super.onCleared()
-        helper!!.stop()
-        helper!!.destroy()
+        try {
+            helper?.stop()
+            helper?.destroy()
+        } catch (e: Exception) {
+            toast.postValue("" + e);
+            Log.w(TAG, e)
+        }
+        helper = null
     }
 
     internal fun getConnectionStatus(): LiveData<String> {
@@ -100,7 +108,7 @@ class IOIOViewModel : ViewModel() {
                 startDaemon(WatchDigitalInput(1, digital!!, samples[0]))
                 startDaemon(WatchAnalogInput(46, analog!!, samples[1]))
             } catch (e: ConnectionLostException) {
-                toast.postValue(e.toString() + "")
+                toast.postValue("" + e)
                 throw e
             }
 
@@ -108,11 +116,11 @@ class IOIOViewModel : ViewModel() {
 
         @Throws(ConnectionLostException::class, InterruptedException::class)
         override fun loop() {
-            Log.v(TAG, "loop")
             // Blink statusLED briefly, every 10 seconds:
             status = !status
-            if (statusLED != null) {
-                statusLED!!.write(status)
+            statusLED?.write(status)
+            if (status) {
+                Log.v(TAG, "blink")
             }
             Thread.sleep((if (status) 9900 else 100).toLong())
         }
@@ -120,22 +128,17 @@ class IOIOViewModel : ViewModel() {
         override fun disconnected() {
             Log.v(TAG, "disconnected")
             showStatus("disconnected", null)
-            if (analog != null) {
-                analog!!.close()
-                analog = null
+            analog?.close()
+            analog = null
+            digital?.close()
+            digital = null
+            try {
+                statusLED?.write(false)
+            } catch (e: ConnectionLostException) {
+                // ignored
             }
-            if (digital != null) {
-                digital!!.close()
-                digital = null
-            }
-            if (statusLED != null) {
-                try {
-                    statusLED!!.write(false)
-                } catch (ignored: ConnectionLostException) {
-                }
-                statusLED!!.close()
-                statusLED = null
-            }
+            statusLED?.close()
+            statusLED = null
         }
 
         private fun showStatus(title: String, ioio: IOIO?) {
@@ -165,11 +168,14 @@ class IOIOViewModel : ViewModel() {
                     val value = nextSample()
                     samples.add(Sample(System.nanoTime(), value))
                 }
-            } catch (ignored: ConnectionLostException) {
+            } catch (e: ConnectionLostException) {
+                // ignored
+            } catch (e: IllegalStateException) { // Trying to use a closed resouce
+                Log.w(TAG, e)
             } catch (e: Exception) {
+                Log.w(TAG, e)
                 toast.postValue("input $pin: $e")
             }
-
         }
 
         @Throws(ConnectionLostException::class, InterruptedException::class)
@@ -231,8 +237,8 @@ class IOIOViewModel : ViewModel() {
                                     destination, null,
                                     message, null, null)
                         } catch (e: Exception) {
-                            toast.postValue("" + e)
                             Log.w(TAG, e)
+                            toast.postValue("" + e)
                         }
                     }
                 }

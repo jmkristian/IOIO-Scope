@@ -49,12 +49,14 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         Log.v(TAG, "onDestroy")
+        model?.helper?.destroy()
         super.onDestroy()
     }
 
     override fun onStart() {
         Log.v(TAG, "onStart")
         super.onStart()
+        model?.helper?.start()
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)
                 != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.SEND_SMS), 1)
@@ -63,14 +65,13 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStop() {
         Log.v(TAG, "onStop")
+        model?.helper?.stop()
         super.onStop()
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        if (model != null) {
-            model!!.onNewIntent(intent)
-        }
+        model?.onNewIntent(intent)
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, results: IntArray) {
