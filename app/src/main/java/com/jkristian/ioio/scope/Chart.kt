@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.drawable.BitmapDrawable
-import android.util.Log
 import android.widget.ImageView
 import androidx.annotation.ColorInt
 import java.util.*
@@ -16,12 +15,12 @@ private const val TAG = "Chart"
  */
 internal class Chart(private val view: ImageView) {
 
+    private val width: Int = view.width
+    private val height: Int = view.height
     private var samples: SampleSet? = null
     private var now: Long = 0
     private var startTime: Long = 0
     private var image: Bitmap? = null
-    private var width: Int = 0
-    private var height: Int = 0
 
     fun setSamples(samples: SampleSet?) {
         this.samples = samples
@@ -31,11 +30,9 @@ internal class Chart(private val view: ImageView) {
     }
 
     fun draw(@ColorInt color: Int) {
-        if (width == 0) width = view.width
-        if (height == 0) height = view.height
         val data = samples
         if (width > 0 && height > 0 && data != null && !data.isEmpty) {
-            Log.v(TAG, "draw samples " + data);
+            // Log.v(TAG, "draw samples " + data);
             val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
             val paint = Paint()
@@ -43,7 +40,7 @@ internal class Chart(private val view: ImageView) {
             paint.strokeWidth = STROKE.toFloat()
             paint.strokeCap = Paint.Cap.BUTT
             val points = toPoints(data)
-            Log.v(TAG, "drawLines in " + width + " " + deltas(points));
+            // Log.v(TAG, "drawLines in " + width + " " + deltas(points));
             canvas.drawLines(points, paint)
             image = bitmap
         }
@@ -54,6 +51,7 @@ internal class Chart(private val view: ImageView) {
     }
 
     private fun toPoints(samples: SampleSet): FloatArray {
+        // Log.v(TAG, String.format("getRecent(%f sec)", (now - startTime).toDouble() / SEC))
         val lines = toLines(samples.getRecent(startTime))
         val points = FloatArray(lines.size * 4)
         var p = 0

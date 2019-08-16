@@ -20,14 +20,12 @@ import ioio.lib.api.exception.ConnectionLostException
 import ioio.lib.util.BaseIOIOLooper
 import ioio.lib.util.IOIOLooperProvider
 import ioio.lib.util.android.IOIOAndroidApplicationHelper
-import java.util.ArrayList
 
 private const val TAG = "IOIOViewModel"
 
 class IOIOViewModel : ViewModel() {
 
-    internal var samples: MutableList<SampleSet> = ArrayList()
-
+    internal val samples = listOf(SampleSet(), SampleSet())
     private var context: Context? = null
     private var helper: IOIOAndroidApplicationHelper? = null
     private val connectionStatus = MutableLiveData<String>()
@@ -36,8 +34,6 @@ class IOIOViewModel : ViewModel() {
     init {
         Log.v(TAG, "<init>")
         connectionStatus.value = "connecting..."
-        samples.add(SampleSet())
-        samples.add(SampleSet())
     }
 
     internal fun setContext(context: Context) {

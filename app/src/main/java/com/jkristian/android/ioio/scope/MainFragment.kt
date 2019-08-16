@@ -1,12 +1,12 @@
 package com.jkristian.android.ioio.scope
 
-import android.content.Context
 import android.os.Bundle
 import android.os.Handler
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver.OnGlobalLayoutListener
 import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.ColorInt
@@ -14,8 +14,8 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProviders
-import com.jkristian.ioio.scope.*
 import com.jkristian.ioio.scope.Chart
+import com.jkristian.ioio.scope.R
 import java.util.*
 
 private const val TAG = "MainFragment"
@@ -30,8 +30,7 @@ class MainFragment : Fragment() {
     private var background: Timer? = null
     private var toUiThread: Handler? = null
     private var model: IOIOViewModel? = null
-    private val charts = ArrayList<Chart>()
-    private var connectionStatus: TextView? = null
+    private var charts: List<Chart> = Collections.emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Log.v(TAG, "onCreate")
@@ -44,34 +43,41 @@ class MainFragment : Fragment() {
         toUiThread = Handler()
     }
 
-    override fun onAttach(context: Context) {
-        Log.v(TAG, "onAttach")
-        super.onAttach(context)
-    }
-
-    override fun onDetach() {
-        Log.v(TAG, "onDetach")
-        super.onDetach()
-    }
-
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
+    override fun onCreateView(inflater: LayoutInflater,
+                              container: ViewGroup?,
                               savedInstanceState: Bundle?): View? {
         Log.v(TAG, "onCreateView")
-        var layout = inflater.inflate(R.layout.fragment_main, container, false)
-        charts.add(Chart(layout.findViewById(R.id.chart1)))
-        charts.add(Chart(layout.findViewById(R.id.chart46)))
+        return inflater.inflate(R.layout.fragment_main, container, false)
+    }
+
+    override fun onViewCreated(layout: View, savedInstanceState: Bundle?) {
+        Log.v(TAG, "onViewCreated")
+        super.onViewCreated(layout, savedInstanceState)
         model = ViewModelProviders.of(activity!!).get(IOIOViewModel::class.java)
-        connectionStatus = layout.findViewById(R.id.connectionStatus)
+        val connectionStatus: TextView = layout.findViewById(R.id.connectionStatus)
         connectionStatus!!.text = model!!.getConnectionStatus().value
-        model!!.getConnectionStatus().observe(this, Observer { status -> connectionStatus!!.text = status })
-        model!!.getToast().observe(this, Observer { message -> toast(message) })
-        return layout
+        model!!.getConnectionStatus().observe(this, Observer { status ->
+            connectionStatus!!.text = status
+        })
+        model!!.getToast().observe(this, Observer { message ->
+            toast(message)
+        })
+        layout.viewTreeObserver.addOnGlobalLayoutListener(object : OnGlobalLayoutListener {
+            override fun onGlobalLayout() {
+                // layout.viewTreeObserver.removeOnGlobalLayoutListener(this) requires API 16
+                if (charts.isEmpty()) {
+                    charts = listOf(
+                            Chart(layout.findViewById(R.id.chart1)),
+                            Chart(layout.findViewById(R.id.chart46)))
+                }
+            }
+        })
     }
 
     override fun onDestroyView() {
         Log.v(TAG, "onDestroyView")
         super.onDestroyView()
-        charts.clear()
+        charts = Collections.emptyList()
     }
 
     override fun onStart() {
@@ -93,30 +99,20 @@ class MainFragment : Fragment() {
     private inner class DrawCharts(@param:ColorInt @field:ColorInt private val color: Int)
         : TimerTask() {
 
+        val samples = model!!.samples
+
         override fun run() {
+            var s = 0
+            for (chart in charts) {
+                chart.setSamples(samples[s++])
+            }
+            for (chart in charts) {
+                chart.draw(color)
+            }
+            // On the UI thread, show the new images:
             toUiThread?.post {
-                // On the UI thread, look at the data:
-                val samples = ArrayList(model!!.samples)
-                try {
-                    // On a background thread, convert the data to images:
-                    background?.schedule(object : TimerTask() {
-                        override fun run() {
-                            var s = 0
-                            for (chart in charts) {
-                                chart.setSamples(samples[s++])
-                            }
-                            for (chart in charts) {
-                                chart.draw(color)
-                            }
-                            // On the UI thread, show the new images:
-                            toUiThread?.post {
-                                for (chart in charts) {
-                                    chart.show()
-                                }
-                            }
-                        }
-                    }, 0)
-                } catch (canceled: IllegalStateException) {
+                for (chart in charts) {
+                    chart.show()
                 }
             }
         }
