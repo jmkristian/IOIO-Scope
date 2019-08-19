@@ -70,13 +70,11 @@ class IOIOLifecycleObserver(
 
     @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
     fun onResume() {
-        Log.v(TAG, member("onResume"))
         state = State.ACTIVE
     }
 
     @OnLifecycleEvent(Lifecycle.Event.ON_PAUSE)
     fun onPause() {
-        Log.v(TAG, member("onPause"))
         state = State.PAUSED
     }
 

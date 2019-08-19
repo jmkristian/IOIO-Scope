@@ -26,8 +26,8 @@ private const val TAG = "IOIOViewModel"
 class IOIOViewModel : ViewModel() {
 
     internal val samples = listOf(SampleSet(), SampleSet())
+    private var owner: Context? = null
     private var helper: IOIOAndroidApplicationHelper? = null
-    private var context: Context? = null
     private val connectionStatus = MutableLiveData<String>()
     private val warning = MutableLiveData<String>() // TODO: stream of warnings, not LiveData
 
@@ -36,19 +36,19 @@ class IOIOViewModel : ViewModel() {
         showStatus("", null)
     }
 
-    internal fun setContext(context: AppCompatActivity) {
-        if (this.context != context) {
-            this.context = context
+    internal fun onAttach(owner: AppCompatActivity) {
+        if (this.owner != owner) {
+            this.owner = owner
             showStatus("connecting...", null)
-            helper = IOIOAndroidApplicationHelper(context,
+            helper = IOIOAndroidApplicationHelper(owner,
                     IOIOLooperProvider { connectionType, extra ->
                         Log.v(TAG, "createIOIOLooper("
                                 + connectionType + ", "
                                 + extra + ")")
                         IOIOListener()
                     })
-            Log.v(TAG, "setContext helper = " + helper.hashCode())
-            context.lifecycle.addObserver(IOIOLifecycleObserver(helper!!, warning))
+            Log.v(TAG, "onAttach helper = " + helper.hashCode())
+            owner.lifecycle.addObserver(IOIOLifecycleObserver(helper!!, warning))
         }
     }
 
@@ -58,7 +58,7 @@ class IOIOViewModel : ViewModel() {
             try {
                 helper?.restart()
             } catch (e: Exception) {
-                warning.postValue("" + helper + ".restart " + e);
+                warning.postValue("" + helper + ".restart " + e)
                 Log.w(TAG, e)
             }
         }
@@ -68,7 +68,7 @@ class IOIOViewModel : ViewModel() {
         Log.v(TAG, "onCleared")
         super.onCleared()
         helper = null
-        context = null
+        owner = null
     }
 
     internal fun getConnectionStatus(): LiveData<String> {
@@ -83,15 +83,21 @@ class IOIOViewModel : ViewModel() {
         Log.v(TAG, "showStatus " + title)
         val status = StringBuilder(title)
         if (ioio != null) {
-            status.append(String.format(
-                    "\nIOIOLib: %s" +
-                            "\nApplication firmware: %s" +
-                            "\nBootloader firmware: %s" +
-                            "\nHardware: %s",
-                    ioio.getImplVersion(IOIO.VersionType.IOIOLIB_VER),
-                    ioio.getImplVersion(IOIO.VersionType.APP_FIRMWARE_VER),
-                    ioio.getImplVersion(IOIO.VersionType.BOOTLOADER_VER),
-                    ioio.getImplVersion(IOIO.VersionType.HARDWARE_VER)))
+            var versions: String = ""
+            try {
+                versions = String.format(
+                        "\nIOIOLib: %s" +
+                                "\nApplication firmware: %s" +
+                                "\nBootloader firmware: %s" +
+                                "\nHardware: %s",
+                        ioio.getImplVersion(IOIO.VersionType.IOIOLIB_VER),
+                        ioio.getImplVersion(IOIO.VersionType.APP_FIRMWARE_VER),
+                        ioio.getImplVersion(IOIO.VersionType.BOOTLOADER_VER),
+                        ioio.getImplVersion(IOIO.VersionType.HARDWARE_VER))
+            } catch (e: Exception) {
+                Log.w(TAG, e)
+            }
+            status.append(versions)
         }
         connectionStatus.postValue(status.toString())
     }
@@ -100,8 +106,7 @@ class IOIOViewModel : ViewModel() {
      * Handle interaction with one IOIO board.
      * Each time the model is created, an instance is constructed for each board.
      * For each instance, incompatible() or setup() is called once; then
-     * loop() is called repeatedly and finally disconnected() is called once
-     * when the model is cleared.
+     * loop() is called repeatedly and finally disconnected() is called once.
      */
     private inner class IOIOListener : BaseIOIOLooper() {
 
@@ -122,7 +127,7 @@ class IOIOViewModel : ViewModel() {
                 digital = ioio_.openDigitalInput(1, DigitalInput.Spec.Mode.PULL_UP)
                 analog = ioio_.openAnalogInput(46)
                 startDaemon(WatchDigitalInput(1, digital!!, samples[0]))
-                startDaemon(WatchAnalogInput(46, analog!!, samples[1]))
+                // startDaemon(WatchAnalogInput(46, analog!!, samples[1]))
             } catch (e: ConnectionLostException) {
                 warning.postValue("" + e)
                 throw e
@@ -172,9 +177,8 @@ class IOIOViewModel : ViewModel() {
             } catch (e: InterruptedException) { // ignored
                 Log.v(TAG, "input $pin: $e")
             } catch (e: IllegalStateException) { // maybe trying to use a closed resouce
-                if ("Trying to use a closed resouce".equals(e.message)) {
-                    Log.v(TAG, "input $pin: $e")
-                } else {
+                Log.w(TAG, e)
+                if (!"Trying to use a closed resouce".equals(e.message)) {
                     warning.postValue("input $pin: $e")
                 }
             } catch (e: Exception) {
@@ -237,7 +241,7 @@ class IOIOViewModel : ViewModel() {
                         Log.i(TAG, message)
                         try {
                             val destination = PreferenceManager
-                                    .getDefaultSharedPreferences(context)?.getString("SMS_to", "")
+                                    .getDefaultSharedPreferences(owner)?.getString("SMS_to", "")
                             if (destination != null && destination.isNotEmpty()) {
                                 SmsManager.getDefault().sendTextMessage(
                                         destination, null,

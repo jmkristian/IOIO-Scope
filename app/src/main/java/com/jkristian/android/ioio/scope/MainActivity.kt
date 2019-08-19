@@ -28,8 +28,8 @@ class MainActivity : AppCompatActivity() {
         Log.v(TAG, "onCreate")
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        model = ViewModelProviders.of(this).get(IOIOViewModel::class.java!!)
-        model?.setContext(this)
+        model = ViewModelProviders.of(this).get(IOIOViewModel::class.java)
+        model?.onAttach(this)
 
         val actionBar = findViewById<Toolbar>(R.id.toolbar)
         setSupportActionBar(actionBar)
@@ -49,6 +49,11 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
+    override fun onDestroy() {
+        Log.v(TAG, "onDestroy")
+        super.onDestroy()
+    }
+
     override fun onStart() {
         Log.v(TAG, "onStart")
         super.onStart()
@@ -56,6 +61,11 @@ class MainActivity : AppCompatActivity() {
                 != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.SEND_SMS), 1)
         }
+    }
+
+    override fun onStop() {
+        Log.v(TAG, "onStop")
+        super.onStop()
     }
 
     override fun onNewIntent(intent: Intent) {
