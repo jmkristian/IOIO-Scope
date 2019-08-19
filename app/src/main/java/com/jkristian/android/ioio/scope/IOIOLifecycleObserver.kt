@@ -14,47 +14,73 @@ class IOIOLifecycleObserver(
         private val warning: MutableLiveData<String>?)
     : LifecycleObserver {
 
+    enum class State {
+        DEAD, STOPPED, PAUSED, ACTIVE
+    }
+
+    private var state = State.DEAD
+
     @OnLifecycleEvent(Lifecycle.Event.ON_CREATE)
-    fun create() {
-        Log.v(TAG, "create")
+    fun onCreate() {
+        Log.v(TAG, member("onCreate"))
+        state = State.STOPPED
         try {
             helper.create()
         } catch (e: Exception) {
             Log.w(TAG, e);
-            warning?.postValue(TAG + ".create " + e);
+            warning?.postValue(member(helper, "create ") + e);
         }
     }
 
     @OnLifecycleEvent(Lifecycle.Event.ON_DESTROY)
-    fun destroy() {
-        Log.v(TAG, "destroy")
+    fun onDestroy() {
+        Log.v(TAG, member("onDestroy"))
+        state = State.DEAD
         try {
             helper.destroy()
         } catch (e: Exception) {
             Log.w(TAG, e);
-            warning?.postValue(TAG + ".destroy " + e);
+            warning?.postValue(member(helper, "destroy ") + e);
         }
     }
 
     @OnLifecycleEvent(Lifecycle.Event.ON_START)
-    fun start() {
-        Log.v(TAG, "start")
+    fun onStart() {
+        Log.v(TAG, member("onStart"))
+        state = State.PAUSED
         try {
             helper.start()
         } catch (e: Exception) {
             Log.w(TAG, e);
-            warning?.postValue(TAG + ".start " + e);
+            warning?.postValue(member(helper, "start ") + e);
         }
     }
 
     @OnLifecycleEvent(Lifecycle.Event.ON_STOP)
-    fun stop() {
-        Log.v(TAG, "stop")
+    fun onStop() {
+        Log.v(TAG, member("onStop"))
+        state = State.STOPPED
         try {
             helper.stop();
         } catch (e: Exception) {
             Log.w(TAG, e);
-            warning?.postValue(TAG + ".stop " + e);
+            warning?.postValue(member(helper, "stop ") + e);
         }
     }
+
+    @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
+    fun onResume() {
+        Log.v(TAG, member("onResume"))
+        state = State.ACTIVE
+    }
+
+    @OnLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+    fun onPause() {
+        Log.v(TAG, member("onPause"))
+        state = State.PAUSED
+    }
+
+    private fun member(thing: Any, name: String) = "" + thing.hashCode() + ".$name"
+
+    private fun member(name: String) = member(this, name)
 }

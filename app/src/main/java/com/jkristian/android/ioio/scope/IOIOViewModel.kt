@@ -29,7 +29,7 @@ class IOIOViewModel : ViewModel() {
     private var helper: IOIOAndroidApplicationHelper? = null
     private var context: Context? = null
     private val connectionStatus = MutableLiveData<String>()
-    private val warning = MutableLiveData<String>()
+    private val warning = MutableLiveData<String>() // TODO: stream of warnings, not LiveData
 
     init {
         Log.v(TAG, "<init>")
@@ -41,7 +41,13 @@ class IOIOViewModel : ViewModel() {
             this.context = context
             showStatus("connecting...", null)
             helper = IOIOAndroidApplicationHelper(context,
-                    IOIOLooperProvider { connectionType, extra -> IOIOListener() })
+                    IOIOLooperProvider { connectionType, extra ->
+                        Log.v(TAG, "createIOIOLooper("
+                                + connectionType + ", "
+                                + extra + ")")
+                        IOIOListener()
+                    })
+            Log.v(TAG, "setContext helper = " + helper.hashCode())
             context.lifecycle.addObserver(IOIOLifecycleObserver(helper!!, warning))
         }
     }
@@ -52,7 +58,7 @@ class IOIOViewModel : ViewModel() {
             try {
                 helper?.restart()
             } catch (e: Exception) {
-                warning.postValue(TAG + ".onNewIntent" + e);
+                warning.postValue("" + helper + ".restart " + e);
                 Log.w(TAG, e)
             }
         }
@@ -162,9 +168,15 @@ class IOIOViewModel : ViewModel() {
                     samples.add(Sample(System.nanoTime(), value))
                 }
             } catch (e: ConnectionLostException) { // ignored
+                Log.v(TAG, "input $pin: $e")
             } catch (e: InterruptedException) { // ignored
+                Log.v(TAG, "input $pin: $e")
             } catch (e: IllegalStateException) { // maybe trying to use a closed resouce
-                Log.w(TAG, e)
+                if ("Trying to use a closed resouce".equals(e.message)) {
+                    Log.v(TAG, "input $pin: $e")
+                } else {
+                    warning.postValue("input $pin: $e")
+                }
             } catch (e: Exception) {
                 Log.w(TAG, e)
                 warning.postValue("input $pin: $e")
