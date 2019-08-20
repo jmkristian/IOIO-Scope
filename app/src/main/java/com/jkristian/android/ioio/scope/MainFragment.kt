@@ -58,10 +58,12 @@ class MainFragment : Fragment(), IOIOLooperProvider {
         helper?.create()
         toUiThread = Handler()
         model = ViewModelProviders.of(this).get(IOIOViewModel::class.java)
+        helper?.start()
     }
 
     override fun onDestroy() {
         Log.v(TAG, "onDestroy")
+        helper?.stop()
         helper?.destroy()
         super.onDestroy()
     }
@@ -103,7 +105,6 @@ class MainFragment : Fragment(), IOIOLooperProvider {
     override fun onStart() {
         Log.v(TAG, "onStart")
         super.onStart()
-        helper?.start()
         background = Timer()
         background?.schedule(
                 DrawCharts(ContextCompat.getColor(context!!, R.color.chartForeground)),
@@ -112,7 +113,6 @@ class MainFragment : Fragment(), IOIOLooperProvider {
 
     override fun onStop() {
         Log.v(TAG, "onStop")
-        helper?.stop()
         super.onStop()
         background?.cancel()
         background = null
@@ -149,10 +149,8 @@ class MainFragment : Fragment(), IOIOLooperProvider {
                 statusLED = ioio_.openDigitalOutput(IOIO.LED_PIN, true)
                 digital = ioio_.openDigitalInput(1, DigitalInput.Spec.Mode.PULL_UP)
                 analog = ioio_.openAnalogInput(46)
-/*
                 startDaemon(WatchDigitalInput(1, digital!!, model!!.samples[0]))
-                startDaemon(WatchAnalogInput(46, analog!!, samples[1]))
-*/
+                startDaemon(WatchAnalogInput(46, analog!!, model!!.samples[1]))
             } catch (e: ConnectionLostException) {
                 warn("" + e)
                 throw e
