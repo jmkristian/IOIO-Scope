@@ -63,7 +63,7 @@ class Chart(private val view: ImageView) {
     }
 
     private fun toLines(samples: Collection<Sample>): Collection<Line> {
-        if (samples == null || samples.isEmpty()) {
+        if (samples.isEmpty()) {
             return Collections.emptyList()
         }
         val lines = ArrayList<Line>(samples.size + 1)

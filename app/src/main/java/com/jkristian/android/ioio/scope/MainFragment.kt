@@ -206,12 +206,6 @@ class MainFragment : Fragment(), IOIOLooperProvider {
 
         private var lastValue = java.lang.Float.NaN
 
-        init {
-            if (input == null) {
-                warn("$pin AnalogInput is null")
-            }
-        }
-
         @Throws(ConnectionLostException::class, InterruptedException::class)
         override fun nextSample(): Float {
             var value: Float
