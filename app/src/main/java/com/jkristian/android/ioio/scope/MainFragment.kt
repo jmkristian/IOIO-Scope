@@ -1,6 +1,5 @@
 package com.jkristian.android.ioio.scope
 
-import android.content.Context
 import android.content.ContextWrapper
 import android.os.Bundle
 import android.os.Handler
@@ -32,6 +31,7 @@ import ioio.lib.util.IOIOLooper
 import ioio.lib.util.IOIOLooperProvider
 import ioio.lib.util.android.IOIOAndroidApplicationHelper
 import java.util.*
+import java.util.concurrent.Callable
 
 private const val TAG = "MainFragment"
 
@@ -52,12 +52,10 @@ class MainFragment : Fragment(), IOIOLooperProvider {
         Log.v(TAG, "onCreate")
         super.onCreate(savedInstanceState)
         retainInstance = true
-        if (helper == null) {
-            helper = IOIOAndroidApplicationHelper(ContextWrapper(context?.applicationContext), this)
-        }
-        helper?.create()
         toUiThread = Handler()
         model = ViewModelProviders.of(this).get(IOIOViewModel::class.java)
+        helper = IOIOAndroidApplicationHelper(ContextWrapper(context?.applicationContext), this)
+        helper?.create()
         helper?.start()
     }
 
@@ -65,6 +63,8 @@ class MainFragment : Fragment(), IOIOLooperProvider {
         Log.v(TAG, "onDestroy")
         helper?.stop()
         helper?.destroy()
+        helper = null
+        toUiThread = null
         super.onDestroy()
     }
 
@@ -144,24 +144,23 @@ class MainFragment : Fragment(), IOIOLooperProvider {
 
         @Throws(ConnectionLostException::class)
         override fun setup() {
-            showStatus("connected", ioio_)
             try {
+                showStatus("connected", ioio_)
                 statusLED = ioio_.openDigitalOutput(IOIO.LED_PIN, true)
                 digital = ioio_.openDigitalInput(1, DigitalInput.Spec.Mode.PULL_UP)
                 analog = ioio_.openAnalogInput(46)
                 startDaemon(WatchDigitalInput(1, digital!!, model!!.samples[0]))
                 startDaemon(WatchAnalogInput(46, analog!!, model!!.samples[1]))
-            } catch (e: ConnectionLostException) {
+            } catch (e: Exception) {
+                Log.w(TAG, e)
                 warn("" + e)
-                throw e
             }
-
         }
 
         @Throws(ConnectionLostException::class, InterruptedException::class)
         override fun loop() {
             analog?.read();
-            // Blink statusLED briefly, every 1 seconds:
+            // Blink statusLED briefly, once per second:
             status = !status
             statusLED?.write(status)
             if (status) {
@@ -172,19 +171,15 @@ class MainFragment : Fragment(), IOIOLooperProvider {
 
         override fun disconnected() {
             showStatus("disconnected", null)
-/*
             analog?.close()
             analog = null
             digital?.close()
             digital = null
-            try {
+            cautiously("", Callable<Unit> {
                 statusLED?.write(false)
-            } catch (e: ConnectionLostException) {
-                // ignored
-            }
+            })
             statusLED?.close()
             statusLED = null
-*/
         }
     }
 
@@ -193,24 +188,12 @@ class MainFragment : Fragment(), IOIOLooperProvider {
         : Runnable {
 
         override fun run() {
-            try {
+            cautiously("input $pin: ", Callable<Unit> {
                 while (true) {
                     val value = nextSample()
                     samples.add(Sample(System.nanoTime(), value))
                 }
-            } catch (e: ConnectionLostException) { // ignored
-                Log.v(TAG, "input $pin: $e")
-            } catch (e: InterruptedException) { // ignored
-                Log.v(TAG, "input $pin: $e")
-            } catch (e: IllegalStateException) { // maybe trying to use a closed resouce
-                Log.w(TAG, e)
-                if (!"Trying to use a closed resouce".equals(e.message)) {
-                    warn("input $pin: $e")
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, e)
-                warn("input $pin: $e")
-            }
+            })
         }
 
         @Throws(ConnectionLostException::class, InterruptedException::class)
@@ -313,11 +296,10 @@ class MainFragment : Fragment(), IOIOLooperProvider {
         if (ioio != null) {
             var versions: String = ""
             try {
-                versions = String.format(
-                        "\nIOIOLib: %s" +
-                                "\nApplication firmware: %s" +
-                                "\nBootloader firmware: %s" +
-                                "\nHardware: %s",
+                versions = String.format("\nIOIOLib: %s"
+                        + "\nApplication firmware: %s"
+                        + "\nBootloader firmware: %s"
+                        + "\nHardware: %s",
                         ioio.getImplVersion(IOIO.VersionType.IOIOLIB_VER),
                         ioio.getImplVersion(IOIO.VersionType.APP_FIRMWARE_VER),
                         ioio.getImplVersion(IOIO.VersionType.BOOTLOADER_VER),
@@ -328,6 +310,24 @@ class MainFragment : Fragment(), IOIOLooperProvider {
             status.append(versions)
         }
         model?.connectionStatus?.postValue(status.toString())
+    }
+
+    private fun cautiously(preface: String, doIt: Callable<Unit>) {
+        try {
+            doIt.call()
+        } catch (e: ConnectionLostException) { // ignored
+            Log.v(TAG, preface + e)
+        } catch (e: InterruptedException) { // ignored
+            Log.v(TAG, preface + e)
+        } catch (e: IllegalStateException) {
+            Log.w(TAG, e)
+            if (!"Trying to use a closed resouce".equals(e.message)) {
+                warn(preface + e)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, e)
+            warn(preface + e)
+        }
     }
 
     private fun toast(message: String) {
