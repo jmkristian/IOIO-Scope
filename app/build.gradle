@@ -16,9 +16,7 @@ android {
     signingConfigs {
         release {
             storeFile file('C:\\Users\\John\\.android\\app-keystore.jks')
-            storePassword 'et2Brute?'
             keyAlias = 'release'
-            keyPassword 'et2Brute?'
         }
     }
     buildTypes {
