@@ -1,5 +1,6 @@
 package com.jkristian.android.ioio.scope
 
+import android.content.Context
 import android.os.Bundle
 import android.os.Handler
 import android.util.Log
@@ -8,7 +9,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver.OnGlobalLayoutListener
 import android.widget.TextView
-import android.widget.Toast
 import androidx.annotation.ColorInt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
@@ -19,28 +19,23 @@ import com.jkristian.ioio.scope.R
 import java.util.*
 
 private const val TAG = "MainFragment"
-// TODO: Rename parameter arguments, choose names that match
-// the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
-// private const val ARG_PARAM1 = "param1"
 
 class MainFragment : Fragment() {
-    // TODO: Rename and change types of parameters
-    // private var param1: String? = null
 
-    private var background: Timer? = null
-    private var toUiThread: Handler? = null
     private var model: IOIOViewModel? = null
+    private var toUiThread: Handler? = null
+    private var background: Timer? = null
     private var charts: List<Chart> = Collections.emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Log.v(TAG, "onCreate")
         super.onCreate(savedInstanceState)
-/*
-        arguments?.let {
-            param1 = it.getString(ARG_PARAM1)
-        }
-*/
         toUiThread = Handler()
+    }
+
+    override fun onAttach(context: Context) {
+        Log.v(TAG, "onAttach")
+        super.onAttach(context)
     }
 
     override fun onCreateView(inflater: LayoutInflater,
@@ -55,12 +50,8 @@ class MainFragment : Fragment() {
         super.onViewCreated(layout, savedInstanceState)
         model = ViewModelProviders.of(activity!!).get(IOIOViewModel::class.java)
         val connectionStatus: TextView = layout.findViewById(R.id.connectionStatus)
-        connectionStatus!!.text = model!!.getConnectionStatus().value
-        model!!.getConnectionStatus().observe(this, Observer { status ->
+        model!!.connectionStatus.observe(this, Observer { status ->
             connectionStatus!!.text = status
-        })
-        model!!.getWarning().observe(this, Observer { message ->
-            toast(message)
         })
         layout.viewTreeObserver.addOnGlobalLayoutListener(object : OnGlobalLayoutListener {
             var done = false
@@ -118,27 +109,5 @@ class MainFragment : Fragment() {
                 }
             }
         }
-    }
-
-    private fun toast(message: String) {
-        Toast.makeText(this.context, message, Toast.LENGTH_LONG).show()
-    }
-
-    companion object {
-        /**
-         * Use this factory method to create a new instance of
-         * this fragment using the provided parameters.
-         *
-         * @param param1 Parameter 1.
-         */
-        // TODO: Rename and change types and number of parameters
-        @JvmStatic
-        fun newInstance(param1: String) =
-                MainFragment().apply {
-                    arguments = Bundle().apply {
-                        // putString(ARG_PARAM1, param1)
-                    }
-                }
-
     }
 }

@@ -1,12 +1,11 @@
 package com.jkristian.ioio.scope
 
-import java.util.ArrayDeque
-import java.util.ArrayList
+import java.util.*
 
 /**
  * Contains a sequence of samples. Thread safe.
  */
-internal class SampleSet {
+class SampleSet {
 
     private val samples = ArrayDeque<Sample>()
 

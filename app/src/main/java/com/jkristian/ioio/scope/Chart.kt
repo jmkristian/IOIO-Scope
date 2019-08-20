@@ -13,7 +13,7 @@ private const val TAG = "Chart"
 /**
  * Displays a sequence of samples. Not thread safe.
  */
-internal class Chart(private val view: ImageView) {
+class Chart(private val view: ImageView) {
 
     private val width: Int = view.width
     private val height: Int = view.height

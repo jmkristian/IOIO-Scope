@@ -24,4 +24,8 @@ class SettingsFragment : PreferenceFragmentCompat() {
         Log.v(TAG, "onDetach")
         super.onDetach()
     }
+
+    companion object {
+        const val SMS_TO = "SMS_to"
+    }
 }
